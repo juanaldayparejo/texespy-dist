@@ -44,7 +44,7 @@ Implementation Notes
 
    \begindata
 
-     PATH_VALUES       = ( '/exomars/projects/ja22256/texespy-dist/texespy/data/spice/kernels_esa' )
+     PATH_VALUES       = ( '/home/alday/Documents/Projects/texespy-dist/texespy/data/spice/kernels_esa' )
 
      PATH_SYMBOLS      = ( 'KERNELS' )
 
