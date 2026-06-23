@@ -631,6 +631,327 @@ def calc_emission_angle_earth(date_obs,time_obs,lat,lon,alt,body='MARS',ref='IAU
 
 ##############################################################################################
 ##############################################################################################
+#                                   TIME SERIES ROUTINES
+##############################################################################################
+##############################################################################################
+
+from datetime import date, timedelta, datetime, timezone
+
+irtf_semesters = {
+    "2023A": {
+        "initial_date": datetime(2023, 2, 1),
+        "end_date": datetime(2023, 7, 31)
+    },
+    "2023B": {
+        "initial_date": datetime(2023, 8, 1),
+        "end_date": datetime(2024, 1, 31)
+    },
+    "2024A": {
+        "initial_date": datetime(2024, 2, 1),
+        "end_date": datetime(2024, 7, 31)
+    },
+    "2024B": {
+        "initial_date": datetime(2024, 8, 1),
+        "end_date": datetime(2025, 1, 31)
+    },
+    "2025A": {
+        "initial_date": datetime(2025, 2, 1),
+        "end_date": datetime(2025, 7, 31)
+    },
+    "2025B": {
+        "initial_date": datetime(2025, 8, 1),
+        "end_date": datetime(2026, 1, 31)
+    },
+    "2026A": {
+        "initial_date": datetime(2026, 2, 1),
+        "end_date": datetime(2026, 7, 31)
+    },
+    "2026B": {
+        "initial_date": datetime(2026, 8, 1),
+        "end_date": datetime(2027, 1, 31)
+    },
+    "2027A": {
+        "initial_date": datetime(2027, 2, 1),
+        "end_date": datetime(2027, 7, 31)
+    },
+    "2027B": {
+        "initial_date": datetime(2027, 8, 1),
+        "end_date": datetime(2028, 1, 31)
+    },
+    "2028A": {
+        "initial_date": datetime(2028, 2, 1),
+        "end_date": datetime(2028, 7, 31)
+    },
+    "2028B": {
+        "initial_date": datetime(2028, 8, 1),
+        "end_date": datetime(2029, 1, 31)
+    },
+    "2029A": {
+        "initial_date": datetime(2029, 2, 1),
+        "end_date": datetime(2029, 7, 31)
+    },
+    "2029B": {
+        "initial_date": datetime(2029, 8, 1),
+        "end_date": datetime(2030, 1, 31)
+    },
+    "2030A": {
+        "initial_date": datetime(2030, 2, 1),
+        "end_date": datetime(2030, 7, 31)
+    },
+    "2030B": {
+        "initial_date": datetime(2030, 8, 1),
+        "end_date": datetime(2031, 1, 31)
+    }
+}
+
+#######################################################################################################
+
+def evolution_geometry_semester(semester,planet="Mars"):
+    """
+    FUNCTION NAME : evolution_geometry_semester()
+
+    DESCRIPTION : Calculate the geometry of the ground-based observations for a given IRTF semester
+
+    INPUTS : 
+
+        semester :: Semester (e.g., "2026B")
+
+    OPTIONAL INPUTS: 
+
+        body :: Name of the body we want to observe
+            
+    OUTPUTS : 
+ 
+        dates(ntimes) :: List of dates
+        angsize(ntimes) :: Angular size of the disk (arcsec)
+        vdoppler(ntimes) :: Doppler velocity between the Earth and the body (km/s)
+        sol_elong(ntimes) :: Solar elongation (degrees)
+        phase_ang(ntimes) :: Phase angle (degrees)
+
+    CALLING SEQUENCE:
+
+        dates,angsize,vdoppler,sol_elong,phase_ang = evolution_geometry_semester(semester,body="Mars")
+
+    MODIFICATION HISTORY : Juan Alday (15/03/2025)
+    """
+
+    # Define date range for the semester
+    start_date = irtf_semesters[semester]["initial_date"]
+    end_date = irtf_semesters[semester]["end_date"]
+
+    # Generate dates between start and end dates
+    dates = [start_date + timedelta(days=x) for x in range((end_date - start_date).days + 1)]
+
+    # store the dates between two dates in a list
+    datesx = []
+
+    for i in range(len(dates)):
+        datesx.append(dates[i].isoformat()[0:10])
+
+    #Perform the calculations
+    angsize = []
+    vdoppler = []
+    sol_elong = []
+    phase_ang = []
+    for i in range(len(datesx)):
+        
+        angsize.append(calc_angsize_body(datesx[i],'00:00:00',body=planet.upper(),ref='IAU_'+planet.upper(),abcorr='LT+S'))
+        vdoppler.append(calc_vdoppler_earth_body(datesx[i],'00:00:00',body=planet.upper(),ref='IAU_'+planet.upper(),abcorr='LT+S'))
+        sol_elong.append(calc_solar_elongation_body(datesx[i],'00:00:00',body=planet.upper(),ref='IAU_'+planet.upper(),abcorr='LT+S'))
+        phase_ang.append(calc_phase_angle(datesx[i],'00:00:00',body=planet.upper(),ref='IAU_'+planet.upper(),abcorr='LT+S'))
+
+    return dates,angsize,vdoppler,sol_elong,phase_ang
+
+#######################################################################################################
+
+
+def plot_geometry_semester(semester,planet="Mars"):
+    """
+    FUNCTION NAME : plot_geometry_semester()
+
+    DESCRIPTION : Calculate the geometry of the ground-based observations for a given IRTF semester
+                    and make a plot
+
+    INPUTS : 
+
+        semester :: Semester (e.g., "2026B")
+
+    OPTIONAL INPUTS: 
+
+        body :: Name of the body we want to observe
+            
+    OUTPUTS : 
+ 
+        Plot
+
+    CALLING SEQUENCE:
+
+        plot_geometry_semester(semester,body="Mars")
+
+    MODIFICATION HISTORY : Juan Alday (15/03/2025)
+    """
+
+    dates,angsize,vdoppler,sol_elong,phase_ang = evolution_geometry_semester(semester,planet=planet)
+
+
+    fig, ax1 = plt.subplots(1, 1, figsize=(8, 3))
+
+    #Plotting the data
+    ##########################################
+
+    ax1.plot(dates, angsize)
+
+    ax1.grid()
+
+    ax2 = ax1.twinx()
+    ax2.plot(dates,vdoppler,c='tab:red')
+
+    ax3 = ax1.twinx()
+    ax3.plot(dates,sol_elong,c='tab:green')
+    ax3.spines["right"].set_position(("outward", 60))  # Shift outward
+
+    ax4 = ax1.twinx()
+    ax4.plot(dates,phase_ang,c='tab:purple')
+    ax4.spines["right"].set_position(("outward", 120))  # Shift outward
+
+    ax1.set_facecolor('lightgray')
+
+    ax1.set_title(planet+" - Semester "+semester)
+    ax1.set_xlabel('Date (YYYY-MM)')
+    ax1.set_ylabel('Angular size (arcsec)',c='tab:blue')
+    ax2.set_ylabel('Doppler velocity (km s$^{-1}$)',c='tab:red')
+    ax3.set_ylabel('Solar elongation ($^\circ$)',c='tab:green')
+    ax4.set_ylabel('Phase angle ($^\circ$)',c='tab:purple')
+
+#######################################################################################################
+
+def evolution_geometry_day(date,planet="Mars"):
+    """
+    FUNCTION NAME : evolution_geometry_day()
+
+    DESCRIPTION : Calculate the geometry of the ground-based observations for a date from IRTF
+
+    INPUTS : 
+
+        date :: "YYYY-MM-DD"
+
+    OPTIONAL INPUTS: 
+
+        planet :: Name of the body we want to observe
+            
+    OUTPUTS : 
+ 
+        times_hst(ntimes) :: List of HST times (Hawaii Standard Time)
+        emiss_ang_earth(ntimes) :: Emission angle on Earth (degrees)
+        
+
+    CALLING SEQUENCE:
+
+        times_hst,emiss_ang_earth = evolution_geometry_day(date,planet="Mars")
+
+    MODIFICATION HISTORY : Juan Alday (15/03/2025)
+    """
+
+    from zoneinfo import ZoneInfo
+
+    # Input Date
+    hst_zone = ZoneInfo("Pacific/Honolulu")
+
+    # 1. Parse the date string
+    y, m, d = map(int, date.split("-"))
+
+    # 2. Create NAIVE start and end (No timezone yet)
+    # This ensures NumPy generates exactly 00:00 to 23:00
+    start_naive = datetime(y, m, d, 0, 0)
+    end_naive = datetime(y, m, d, 23, 0)
+
+    # 3. Generate the range (still naive)
+    hourly_naive = np.arange(
+        start_naive, 
+        end_naive + timedelta(hours=1), 
+        timedelta(hours=1)
+    ).astype(datetime)
+
+    # 4. Localize to HST and then convert to UTC
+    # .replace(tzinfo=...) says "This time IS HST"
+    # .astimezone(timezone.utc) says "What is this HST time in UTC?"
+    hourly_dates_hst = [dt.replace(tzinfo=hst_zone) for dt in hourly_naive]
+    hourly_dates_utc = [dt.astimezone(timezone.utc) for dt in hourly_dates_hst]
+
+    # store the dates between two dates in a list
+    datesx = []
+    timex = []
+    for i in range(len(hourly_dates_utc)):
+        datesx.append(hourly_dates_utc[i].isoformat()[0:10])
+        timex.append(hourly_dates_utc[i].isoformat()[11:19])
+
+    #Co-ordinates of Mauna Kea
+    lat_observer = 19.8263
+    lon_observer = -155.473
+    alt_observer = 4205.
+
+    #Perform calculations
+    emiss_ang_earth = []
+    for i in range(len(datesx)):    
+        emiss_ang_earth.append(calc_emission_angle_earth(datesx[i],timex[i],lat_observer,lon_observer,alt_observer/1.0e3,body=planet.upper(),ref='IAU_'+planet.upper(),abcorr='LT+S'))
+
+    return hourly_dates_hst, emiss_ang_earth
+
+#######################################################################################################
+
+def plot_geometry_day(date,planet="Mars"):
+    """
+    FUNCTION NAME : plot_geometry_day()
+
+    DESCRIPTION : Calculate the geometry of the ground-based observations for a 
+                    date from IRTF and plot it
+
+    INPUTS : 
+
+        date :: "YYYY-MM-DD"
+
+    OPTIONAL INPUTS: 
+
+        planet :: Name of the body we want to observe
+            
+    OUTPUTS : 
+ 
+        Summary plot
+
+    CALLING SEQUENCE:
+
+        plot_geometry_day(date,planet="Mars")
+
+    MODIFICATION HISTORY : Juan Alday (15/03/2025)
+    """
+
+    times_hst,emiss_ang_earth = evolution_geometry_day(date,planet=planet)
+
+    fig, ax1 = plt.subplots(1, 1, figsize=(10, 4))
+
+    ax1.plot(times_hst, emiss_ang_earth,c='tab:blue')
+    ax1.set_ylim(0.,180.)
+
+    ax1.fill_between(times_hst,0.,45.,color="tab:green",alpha=0.1)
+    ax1.fill_between(times_hst,45.,90.,color="tab:orange",alpha=0.1)
+    ax1.fill_between(times_hst,90.,180.,color="tab:red",alpha=0.1)
+
+    ax1.text(times_hst[-2],5.,"Closer to zenith",verticalalignment="bottom",horizontalalignment="right",color="tab:green")
+    ax1.text(times_hst[-2],50.,"Closer to horizon",verticalalignment="bottom",horizontalalignment="right",color="tab:orange")
+    ax1.text(times_hst[-2],95.,"Not visible",verticalalignment="bottom",horizontalalignment="right",color="tab:red")
+
+    ax1.grid()
+    ax1.set_xlim(times_hst[0],times_hst[-1])
+    ax1.set_title(planet+" - "+date)
+    ax1.set_ylabel('Emission angle ($^\circ$)')
+    ax1.set_xlabel('Date (HST)')
+    ax1.set_facecolor('lightgray')
+    plt.tight_layout()
+
+
+
+##############################################################################################
+##############################################################################################
 #                                     MAPPING GEOMETRY
 ##############################################################################################
 ##############################################################################################
