@@ -98,7 +98,7 @@ def perform_analysis(filename,
 
         del wave,telluric_transmissionx
     else:
-        telluric_transmission = np.zeros(Measurement.NCONV[0])
+        telluric_transmission = np.ones(Measurement.NCONV[0])
 
 
     #Calculating the Mars spectrum with all gases
