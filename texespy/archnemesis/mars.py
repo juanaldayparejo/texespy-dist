@@ -363,7 +363,7 @@ def create_measurement_class(waven_min,waven_max,emiss_ang,sol_ang,azi_ang,resol
 
 def create_scatter_class(waven_min,waven_max,iscat=0,nmu=5,nf=10,nphi=100):
     """
-    FUNCTION NAME : create_cloud_model()
+    FUNCTION NAME : create_scatter_cass()
 
     DESCRIPTION : Create an instance of the `Scatter_0` class containing the cloud model for the Venus case
 
@@ -473,7 +473,7 @@ def create_stellar_class():
     Stellar = ans.Stellar_0()
 
     #Defining the Sun-Mars distance
-    Stellar.DIST = 0.72
+    Stellar.DIST = 1.5
 
     #Defining the file containing the solar spectrum
     solfile = 'houghtonsolarwn.dat'
