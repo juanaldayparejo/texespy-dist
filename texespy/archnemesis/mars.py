@@ -204,7 +204,7 @@ def create_archnemesis_file(filename,
     CIA = create_cia_class()
     Layer = create_layer_class(Atmosphere)
     Spectroscopy = create_spectroscopy_class(waven_min,waven_max,delv,id_gases=id_gases,iso_gases=iso_gases,hitran_file=hitran_file,tips_file=tips_file,resolving_power=resolving_power)
-    Surface = create_surface_class()
+    Surface = create_surface_class(waven_min,waven_max)
     Retrieval = create_retrieval_class()
     if include_telluric is True:
         Telluric = create_telluric_class(waven_min,waven_max,delv,hitran_file=hitran_file,tips_file=tips_file,resolving_power=resolving_power,emiss_ang_earth=emiss_ang_earth)
@@ -380,7 +380,7 @@ def create_scatter_class(waven_min,waven_max,iscat=0,nmu=5,nf=10,nphi=100):
             
     OUTPUTS : 
  
-        Scatter :: An instance of the `Scatter_0` class containing the cloud model for the Venus case
+        Scatter :: An instance of the `Scatter_0` class containing the cloud model for the Mars case
 
     CALLING SEQUENCE:
 
@@ -409,7 +409,7 @@ def create_scatter_class(waven_min,waven_max,iscat=0,nmu=5,nf=10,nphi=100):
     Scatter.NF = nf
     Scatter.NMU = nmu
     Scatter.NPHI = nphi
-    Scatter.ISPACE = 0 #Wavelength
+    Scatter.ISPACE = 0 #Wavenumber
 
     Scatter.IMIE = 2 #Legendre polynomial expansion of the phase function
     waven = np.arange(int(waven_min)-1.,waven_max+2.,1.)
@@ -440,6 +440,45 @@ def create_scatter_class(waven_min,waven_max,iscat=0,nmu=5,nf=10,nphi=100):
 
     idust = 1    #The index of the aerosol populations in the class that this calculation corresponds to (from 0 to NDUST-1)
     Scatter.makephase(idust,iscat,pars)
+
+
+    #The dust profiles are normalised to the optical depth in the visible. Here we therefore need to normalise the KEXT to 0.67 um
+    Scatter_NORM = ans.Scatter_0()
+    Scatter_NORM.ISCAT = iscat
+    Scatter_NORM.NF = nf
+    Scatter_NORM.NMU = nmu
+    Scatter_NORM.NPHI = nphi
+    Scatter_NORM.ISPACE = 1 #Wavelength
+
+    Scatter_NORM.IMIE = 2 #Legendre polynomial expansion of the phase function
+    wavel = np.array([0.67])
+    NDUST = 2      #Number of aerosol populations that we want to include in our atmosphere
+    NWAVE = len(wavel)    #Number of spectral points
+    NTHETA = 361    #Number of phase angles for defining the phase function
+    theta = np.linspace(0.,180.,NTHETA)
+
+    #Now we initialise the arrays that will be filled with the calculations
+    Scatter_NORM.initialise_arrays(NDUST,NWAVE,NTHETA,NLPOL=150)
+    Scatter_NORM.WAVE = wavel
+    Scatter_NORM.THETA = theta
+
+    #Mode 1
+    Scatter_NORM.read_refind(1)  #Reading optical properties of the Mars dust
+    iscat = 2  #Log-normal distribution
+    pars = np.array([r_g1,sigma_g1])
+
+    idust = 0    #The index of the aerosol populations in the class that this calculation corresponds to (from 0 to NDUST-1)
+    Scatter_NORM.makephase(idust,iscat,pars)
+
+    #Mode 2
+    Scatter_NORM.read_refind(2)  #Reading optical properties of the water ice
+    iscat = 2  #Log-normal distribution
+    pars = np.array([r_g2,sigma_g2])
+
+    idust = 1    #The index of the aerosol populations in the class that this calculation corresponds to (from 0 to NDUST-1)
+    Scatter_NORM.makephase(idust,iscat,pars)
+
+    Scatter.KEXT /= Scatter_NORM.KEXT
 
     return Scatter
 
@@ -626,9 +665,40 @@ def create_spectroscopy_class(waven_min,waven_max,delv,id_gases=None,iso_gases=N
 
     return Spectroscopy
 
+
 ###########################################################################################################################
 
-def create_surface_class(tsurf=270.):
+#ALBEDO MODEL
+
+wavelength_albedo_model = np.array([0.100, 0.200, 0.300, 0.400, 0.500, 0.600, 0.700, 0.800, 0.900, 1.000, 1.100, 1.200, 1.300, 1.400, 1.500, 1.600, 1.700, 1.800, 1.900, 2.000, 2.100, 2.200, 2.300, 2.400, 2.500, 2.600, 2.700, 2.800,
+ 2.900, 3.000, 3.100, 3.200, 3.300, 3.400, 3.500, 3.600, 3.700, 3.800, 3.900, 4.000, 4.100, 4.200, 4.300, 4.400, 4.500, 4.600, 4.700, 4.800, 4.900, 5.000, 5.100, 5.200, 5.300, 5.400, 5.500, 5.600,
+ 5.700, 5.800, 5.900, 6.000, 6.100, 6.200, 6.300, 6.400, 6.500, 6.600, 6.700, 6.800, 6.900, 7.000, 7.100, 7.200, 7.300, 7.400, 7.500, 7.600, 7.700, 7.800, 7.900, 8.000, 8.100, 8.200, 8.300, 8.400,
+ 8.500, 8.600, 8.700, 8.800, 8.900, 9.000, 9.100, 9.200, 9.300, 9.400, 9.500, 9.600, 9.700, 9.800, 9.900, 10.000, 10.100, 10.200, 10.300, 10.400, 10.500, 10.600, 10.700, 10.800, 10.900, 11.000,
+ 11.100, 11.200, 11.300, 11.400, 11.500, 11.600, 11.700, 11.800, 11.900, 12.000, 12.100, 12.200, 12.300, 12.400, 12.500, 12.600, 12.700, 12.800, 12.900, 13.000, 13.100, 13.200, 13.300, 13.400, 13.500,
+ 13.600, 13.700, 13.800, 13.900, 14.000, 14.100, 14.200, 14.300, 14.400, 14.500, 14.600, 14.700, 14.800, 14.900, 15.000, 15.100, 15.200, 15.300, 15.400, 15.500, 15.600, 15.700, 15.800, 15.900, 16.000,
+ 16.100, 16.200, 16.300, 16.400, 16.500, 16.600, 16.700, 16.800, 16.900, 17.000, 17.100, 17.200, 17.300, 17.400, 17.500, 17.600, 17.700, 17.800, 17.900, 18.000, 18.100, 18.200, 18.300, 18.400, 18.500,
+ 18.600, 18.700, 18.800, 18.900, 19.000, 19.100, 19.200, 19.300, 19.400, 19.500, 19.600, 19.700, 19.800, 19.900, 20.000, 20.100, 20.200, 20.300, 20.400, 20.500, 20.600, 20.700, 20.800, 20.900, 21.000,
+ 21.100, 21.200, 21.300, 21.400, 21.500, 21.600, 21.700, 21.800, 21.900, 22.000, 22.100, 22.200, 22.300, 22.400, 22.500, 22.600, 22.700, 22.800, 22.900, 23.000, 23.100, 23.200, 23.300, 23.400, 23.500,
+ 23.600, 23.700, 23.800, 23.900, 24.000, 24.100, 24.200, 24.300, 24.400, 24.500, 24.600, 24.700, 24.800, 24.900, 25.000, 25.100, 25.200, 25.300, 25.400, 25.500, 25.600, 25.700, 25.800, 25.900, 26.000,
+ 26.100, 26.200, 26.300, 26.400, 26.500, 26.600, 26.700, 26.800, 26.900, 27.000, 27.100, 27.200, 27.300, 27.400, 27.500, 27.600, 27.700, 27.800, 27.900, 28.000, 28.100, 28.200, 28.300, 28.400, 28.500,
+ 28.600, 28.700, 28.800, 28.900, 29.000, 29.100, 29.200, 29.300, 29.400, 29.500, 29.600, 29.700, 29.800, 29.900, 30.000])
+
+albedo_model = np.array([0.018, 0.019, 0.027, 0.063, 0.125, 0.209, 0.241, 0.240, 0.220, 0.220, 0.220, 0.220, 0.222, 0.225, 0.228, 0.228, 0.228, 0.228, 0.228, 0.228, 0.227, 0.226, 0.225, 0.224, 0.223, 0.220, 0.216, 0.211,
+ 0.207, 0.203, 0.199, 0.195, 0.191, 0.187, 0.183, 0.178, 0.174, 0.170, 0.167, 0.163, 0.160, 0.157, 0.153, 0.150, 0.146, 0.143, 0.139, 0.136, 0.132, 0.129, 0.125, 0.120, 0.116, 0.112, 0.107, 0.103,
+ 0.099, 0.094, 0.090, 0.085, 0.081, 0.077, 0.072, 0.068, 0.063, 0.059, 0.055, 0.050, 0.046, 0.041, 0.037, 0.032, 0.028, 0.023, 0.019, 0.014, 0.010, 0.010, 0.010, 0.010, 0.013, 0.017, 0.020, 0.023,
+ 0.027, 0.029, 0.031, 0.033, 0.035, 0.037, 0.037, 0.037, 0.037, 0.037, 0.037, 0.037, 0.036, 0.036, 0.036, 0.035, 0.035, 0.034, 0.034, 0.033, 0.033, 0.032, 0.032, 0.031, 0.031, 0.030, 0.029, 0.028,
+ 0.028, 0.027, 0.026, 0.025, 0.024, 0.023, 0.022, 0.021, 0.021, 0.022, 0.022, 0.022, 0.022, 0.022, 0.022, 0.022, 0.023, 0.023, 0.023, 0.023, 0.023, 0.023, 0.023, 0.024, 0.024, 0.024, 0.024, 0.024,
+ 0.024, 0.024, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.025, 0.026, 0.026, 0.026, 0.026, 0.026, 0.026, 0.026, 0.026, 0.027, 0.027, 0.027, 0.027, 0.027, 0.027, 0.027, 0.028, 0.028, 0.028, 0.028,
+ 0.028, 0.028, 0.028, 0.029, 0.029, 0.029, 0.029, 0.029, 0.029, 0.029, 0.030, 0.030, 0.030, 0.030, 0.030, 0.030, 0.030, 0.031, 0.031, 0.031, 0.031, 0.031, 0.031, 0.031, 0.032, 0.032, 0.032, 0.032,
+ 0.032, 0.032, 0.032, 0.033, 0.033, 0.033, 0.033, 0.033, 0.033, 0.033, 0.033, 0.033, 0.034, 0.034, 0.034, 0.034, 0.034, 0.034, 0.034, 0.034, 0.034, 0.034, 0.035, 0.035, 0.035, 0.035, 0.035, 0.035,
+ 0.035, 0.035, 0.035, 0.035, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.036, 0.037, 0.037, 0.037, 0.037, 0.037, 0.037, 0.037, 0.037, 0.037, 0.037, 0.038, 0.038, 0.038, 0.038,
+ 0.038, 0.038, 0.038, 0.038, 0.038, 0.038, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.039, 0.040, 0.040, 0.040, 0.040, 0.040, 0.040, 0.040, 0.040, 0.040, 0.041, 0.041, 0.041,
+ 0.041, 0.041, 0.041, 0.041, 0.041, 0.041, 0.041, 0.042, 0.042, 0.042, 0.042, 0.042, 0.042, 0.042, 0.042, 0.042, 0.042, 0.043, 0.043, 0.043])
+
+
+###########################################################################################################################
+
+def create_surface_class(waven_min,waven_max,tsurf=270.):
     """
     FUNCTION NAME : create_surface_class()
 
@@ -636,7 +706,9 @@ def create_surface_class(tsurf=270.):
 
     INPUTS : 
 
-        None
+        waven_min :: Minimum wavenumber (cm-1)
+        waven_max :: Minimum wavenumber (cm-1)
+        delv :: Wavenumber step (cm-1)
 
     OPTIONAL INPUTS:
     
@@ -653,16 +725,33 @@ def create_surface_class(tsurf=270.):
     MODIFICATION HISTORY : Juan Alday (02/06/2026)
     """
 
+    #Defining the wavenumber array
+    resolving_power = 1000.
+    delv = np.mean([waven_max,waven_min]) / resolving_power
+    nwave = int(((waven_max - waven_min) + delv * 20.) / delv) + 1
+    waven = np.linspace(waven_min - delv * 10. , waven_max + delv * 10., nwave)
+
+    wavel = 1. / waven * 1.0e4  #Wavelength array in um
+    isort = np.argsort(wavel)
+    wavel = wavel[isort]
+
+    #Calculating albedo at required wavelengths
+    albedox = np.interp(wavel,wavelength_albedo_model,albedo_model)
+
+    #Re-sorting the albedo values so that they are defined in ascending wavenumber
+    albedox = albedox[isort]
+
     Surface = ans.Surface_0()
     Surface.NLOCATIONS = 1
     Surface.LATITUDE = 0.
     Surface.LONGITUDE = 0.
     Surface.TSURF = tsurf
-    Surface.LOWBC = 1  #Thermal emission only, no reflection
+    Surface.LOWBC = 1  #Lambertian surface
     Surface.ISPACE = 0 #Wavenumber in cm-1
-    Surface.NEM = 2
-    Surface.VEM = np.array([0.,100000.]) #Wavenumber grid for the surface emissivity
-    Surface.EMISSIVITY = np.ones(Surface.NEM) * 1.
+    Surface.GALB = -1.
+    Surface.NEM = nwave
+    Surface.VEM = np.array(waven) #Wavenumber grid for the surface emissivity
+    Surface.EMISSIVITY = 1.0 - albedox
     Surface.assess()
 
     return Surface
@@ -783,6 +872,3 @@ def create_telluric_class(waven_min,waven_max,delv,hitran_file=texes.paths.archn
 
     return Telluric
 
-###########################################################################################################################
-
-    
