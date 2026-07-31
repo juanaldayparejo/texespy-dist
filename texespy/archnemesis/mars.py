@@ -83,6 +83,13 @@ def perform_analysis(filename,
     print("Reading archNEMESIS file")
     Atmosphere,Measurement,Spectroscopy,Scatter,Stellar,Surface,CIA,Layer,Variables,Retrieval,Telluric = ans.Files.read_input_files_hdf5(filename,calc_SE=False)
 
+    #Calculating the calculation wavelengths with Doppler shift        
+    Measurement.build_ils(IGEOM=0)
+    wavecalc_min,wavecalc_max = Measurement.calc_wave_range(apply_doppler=True,IGEOM=0)
+
+    #Reading tables in the required wavelength range
+    Spectroscopy.read_tables(wavemin=wavecalc_min,wavemax=wavecalc_max)
+
     #Calculating telluric contamination
     if include_telluric is True:
 
@@ -92,6 +99,10 @@ def perform_analysis(filename,
         Telluric.Spectroscopy.read_tables(wavemin=wavecalc_min_tel,wavemax=wavecalc_max_tel)
 
         wave,telluric_transmissionx = Telluric.calc_transmission()
+
+        #Interpolating the telluric transmission to the wavelengths of the planetary spectrum
+        wavecorr = Measurement.correct_doppler_shift(Spectroscopy.WAVE)
+        telluric_transmissionx = np.interp(wavecorr,wave,telluric_transmissionx)
 
         #Convolving the telluric spectrum with the instrument lineshape
         telluric_transmission = Measurement.lblconv(wave,telluric_transmissionx,IGEOM=0)
@@ -203,7 +214,7 @@ def create_archnemesis_file(filename,
     Stellar, solfile = create_stellar_class()
     CIA = create_cia_class()
     Layer = create_layer_class(Atmosphere)
-    Spectroscopy = create_spectroscopy_class(waven_min,waven_max,delv,id_gases=id_gases,iso_gases=iso_gases,hitran_file=hitran_file,tips_file=tips_file,resolving_power=resolving_power)
+    Spectroscopy = create_spectroscopy_class(waven_min,waven_max,delv,id_gases=id_gases,iso_gases=iso_gases,hitran_file=hitran_file,tips_file=tips_file,resolving_power=resolving_power,v_doppler=v_doppler)
     Surface = create_surface_class(waven_min,waven_max)
     Retrieval = create_retrieval_class()
     if include_telluric is True:
@@ -411,6 +422,13 @@ def create_scatter_class(waven_min,waven_max,iscat=0,nmu=5,nf=10,nphi=100):
     Scatter.NPHI = nphi
     Scatter.ISPACE = 0 #Wavenumber
 
+
+    #Calculating maximum values for the Doppler shift
+    c = 299792458.0   #Speed of light (m/s)
+    v_doppler_max = 50.
+    waven_min /= (1.0+v_doppler_max*1.0e3 / c)
+    waven_max /= (1.0-v_doppler_max*1.0e3 / c)
+
     Scatter.IMIE = 2 #Legendre polynomial expansion of the phase function
     waven = np.arange(int(waven_min)-1.,waven_max+2.,1.)
     NDUST = 2      #Number of aerosol populations that we want to include in our atmosphere
@@ -589,7 +607,12 @@ def create_layer_class(Atmosphere):
 
 ###########################################################################################################################
 
-def create_spectroscopy_class(waven_min,waven_max,delv,id_gases=None,iso_gases=None,hitran_file=texes.paths.archnemesis_hitran24,tips_file=texes.paths.archnemesis_tips,resolving_power=90000.):
+def create_spectroscopy_class(waven_min,waven_max,delv,
+                                id_gases=None,iso_gases=None,
+                                hitran_file=texes.paths.archnemesis_hitran24,
+                                tips_file=texes.paths.archnemesis_tips,
+                                resolving_power=90000.,
+                                v_doppler=0.):
     """
     FUNCTION NAME : create_spectroscopy_class()
 
@@ -656,10 +679,17 @@ def create_spectroscopy_class(waven_min,waven_max,delv,id_gases=None,iso_gases=N
     fwhm = np.mean([waven_min,waven_max]) / resolving_power
     waven_minx = waven_min - 5. * fwhm
     waven_maxx = waven_max + 5. * fwhm
+
+    c = 299792458.0   #Speed of light (m/s)
+    v_doppler_max = 50.
+    waven_minx /= (1.0+v_doppler_max*1.0e3 / c)
+    waven_maxx /= (1.0-v_doppler_max*1.0e3 / c)
+    
     wavemin = np.floor(waven_minx/delv)*delv
     wavemax = np.ceil(waven_maxx/delv)*delv
     nwave = int(np.round((wavemax - wavemin) / delv))
     wave = np.linspace( wavemin , wavemax , nwave )
+
     Spectroscopy.NWAVE = nwave
     Spectroscopy.WAVE = wave
 
@@ -725,9 +755,16 @@ def create_surface_class(waven_min,waven_max,tsurf=270.):
     MODIFICATION HISTORY : Juan Alday (02/06/2026)
     """
 
+    #Calculating maximum values for the Doppler shift
+    c = 299792458.0   #Speed of light (m/s)
+    v_doppler_max = 50.
+    waven_min /= (1.0+v_doppler_max*1.0e3 / c)
+    waven_max /= (1.0-v_doppler_max*1.0e3 / c)
+
     #Defining the wavenumber array
     resolving_power = 1000.
     delv = np.mean([waven_max,waven_min]) / resolving_power
+
     nwave = int(((waven_max - waven_min) + delv * 20.) / delv) + 1
     waven = np.linspace(waven_min - delv * 10. , waven_max + delv * 10., nwave)
 
@@ -863,6 +900,12 @@ def create_telluric_class(waven_min,waven_max,delv,hitran_file=texes.paths.archn
     fwhm = np.mean([waven_min,waven_max]) / resolving_power
     waven_minx = waven_min - 5. * fwhm
     waven_maxx = waven_max + 5. * fwhm
+
+    c = 299792458.0   #Speed of light (m/s)
+    v_doppler_max = 50.
+    waven_minx /= (1.0+v_doppler_max*1.0e3 / c)
+    waven_maxx /= (1.0-v_doppler_max*1.0e3 / c)
+
     wavemin = np.floor(waven_minx/delv)*delv
     wavemax = np.ceil(waven_maxx/delv)*delv
     nwave = int(np.round((wavemax - wavemin) / delv))
